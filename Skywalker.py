@@ -3,6 +3,7 @@
 
 import adsk.core, adsk.fusion, adsk.cam, traceback
 import math
+import os
 
 #Design constants
 
@@ -15,13 +16,18 @@ TIP_CHORD_LENGTH = 14
 #span length in cm
 SPAN = 55
 
+#aileron length in cm
+AIL_LENGTH = 3.2
+#aileron width in cm
+AIL_WIDTH = 40
+
 #make the slicing work...
 #offset between outer perimeter and inner structures in cm
 OFFSET = 0.08
 
-
 #profile path
-PROFILE_PATH = r"C:\Users\Alexander\Documents\Nurflügel\nur12d\Profile\MH45.txt"
+this_dir = os.path.dirname(__file__)
+PROFILE_PATH = os.path.join(this_dir, "MH45.txt")
 
 
 def run(context):
@@ -156,7 +162,10 @@ def run(context):
         loftInput.isSolid = True
         off_outer_wing = loftFeats.add(loftInput)
         
+        #create ailerons
+        ui.messageBox("Creating ailerons...")
         
+        aileron = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(), adsk.core.Point3D.create())
 
     except:
         if ui:
