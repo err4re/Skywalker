@@ -19,7 +19,11 @@ SPAN = 55
 #aileron length in cm
 AIL_LENGTH = 3.2
 #aileron width in cm
-AIL_WIDTH = 40
+AIL_WIDTH = 25
+#aileron spacing in cm
+AIL_SPACE = 0.1
+#calculate trailing edge sweep
+TRAIL_SWEEP = math.asin( (TIP_CHORD_LENGTH + (SPAN/2)*math.tan(SWEEP) - ROOT_CHORD_LENGTH) / (SPAN/2))
 
 #make the slicing work...
 #offset between outer perimeter and inner structures in cm
@@ -165,7 +169,25 @@ def run(context):
         #create ailerons
         ui.messageBox("Creating ailerons...")
         
-        aileron = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(), adsk.core.Point3D.create())
+        aileron_leading_edge = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP), -(SPAN/2 - AIL_WIDTH), 0), adsk.core.Point3D.create(TIP_CHORD_LENGTH + (SPAN/2)*math.tan(SWEEP) - AIL_LENGTH, -(SPAN/2), 0))
+        aileron_side = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP), -(SPAN/2 - AIL_WIDTH), 0), adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP) + AIL_LENGTH*2, -(SPAN/2 - AIL_WIDTH), 0))
+
+        #small spacing between wing and aileron
+        aileron_space_z = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP), -(SPAN/2 - AIL_WIDTH), 0), adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH - AIL_SPACE)*math.tan(TRAIL_SWEEP), -(SPAN/2 - AIL_WIDTH - AIL_SPACE), 0))
+        aileron_space_x = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH - AIL_SPACE)*math.tan(TRAIL_SWEEP), -(SPAN/2 - AIL_WIDTH - AIL_SPACE), 0), adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH - AIL_SPACE)*math.tan(TRAIL_SWEEP) + AIL_LENGTH*2, -(SPAN/2 - AIL_WIDTH - AIL_SPACE), 0))
+
+
+        #create infill
+        ui.messageBox("Creating infill...")
+
+        box_points = [adsk.core.Point3D.create(ROOT_CHORD_LENGTH, SPAN, 0), adsk.core.Point3D.create( - ROOT_CHORD_LENGTH, - SPAN/4, 0), adsk.core.Point3D.create(ROOT_CHORD_LENGTH, - SPAN*1.5, 0), adsk.core.Point3D.create(ROOT_CHORD_LENGTH*3, - SPAN/4, 0)]
+
+        box_lines = [sketch_xz.sketchCurves.sketchLines.addByTwoPoints(box_points[i], box_points[(i+1)%len(box_points)]) for i,point in enumerate(box_points)]
+
+        #line = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(box_points[0], box_points[1])
+        #box_1 = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(ROOT_CHORD_LENGTH, SPAN/2, 0), adsk.core.Point3D.create( - ROOT_CHORD_LENGTH, - SPAN/4, 0))
+        #box_2 = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(ROOT_CHORD_LENGTH, SPAN/2, 0), adsk.core.Point3D.create(ROOT_CHORD_LENGTH*3, - SPAN/4, 0))
+        #box_3 = sketch_xz.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(ROOT_CHORD_LENGTH*3, - SPAN/4, 0), adsk.core.Point3D.create(ROOT_CHORD_LENGTH, - SPAN, 0))
 
     except:
         if ui:
