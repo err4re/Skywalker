@@ -5,8 +5,11 @@
             "name": "Python: Attach",
             "type": "python",
             "request": "attach",
-            "localRoot": "${workspaceRoot}",
-            "remoteRoot": "${workspaceRoot}",
+            "pathMappings": [  {
+                "localRoot": "${workspaceRoot}",
+                "remoteRoot": "${workspaceRoot}"}],
+            "osx": {"filePath":"${file}"},
+            "windows": {"filePath":"${file}"},
             "port": 9000,
             "host": "localhost"
         }
