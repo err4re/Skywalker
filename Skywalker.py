@@ -22,6 +22,8 @@ AIL_LENGTH = 3.2
 AIL_WIDTH = 25
 #aileron spacing in cm
 AIL_SPACE = 0.1
+#aileron slit in cm
+AIL_SLIT = 0.5
 #calculate trailing edge sweep
 TRAIL_SWEEP = math.asin( (TIP_CHORD_LENGTH + (SPAN/2)*math.tan(SWEEP) - ROOT_CHORD_LENGTH) / (SPAN/2))
 
@@ -34,7 +36,7 @@ SPAR_WIDTH = 0.01
 
 #make the slicing work...
 #offset between outer perimeter and inner structures in cm
-OFFSET = 0.08
+OFFSET = 0.07
 
 #profile path
 this_dir = os.path.dirname(__file__)
@@ -329,9 +331,14 @@ def run(context):
         
         #get the root component of the active design
         rootComp = design.rootComponent
+
+        #create basic sketch in xy plane (to avoid interference in xy root sketch)
+        sketch_xy = rootComp.sketches.add(rootComp.xYConstructionPlane)
+        sketch_xy.name = "Basic Utility Sketch"
         
         #create a new sketch on the xy plane, for root chord
         sketch_xy_root = rootComp.sketches.add(rootComp.xYConstructionPlane)
+        sketch_xy_root.name = "Root Chord Sketch"
         
         #create sketch for tip chord
         planes = rootComp.constructionPlanes
@@ -340,6 +347,7 @@ def run(context):
         planeInput.setByOffset(rootComp.xYConstructionPlane, offsetValue)
         tip_plane = planes.add(planeInput)
         sketch_xy_tip = rootComp.sketches.add(tip_plane)
+        sketch_xy_tip.name = "Tip Chord Sketch"
         
         #sketch root chord
         root_chord, root_profile = sketch_chord(sketch_xy_root, ROOT_CHORD_LENGTH, profile, 0, 0)
@@ -353,18 +361,17 @@ def run(context):
 
         #rails for loft
         #create a new sketch on the xy plane, for rails chord
-        sketch_xy = rootComp.sketches.add(rootComp.xYConstructionPlane)
+        sketch_xy_rails = rootComp.sketches.add(rootComp.xYConstructionPlane)
+        sketch_xy_rails.name = "Rails Sketch"
         lead_point1 = root_chord.fitPoints.item(31).worldGeometry
         lead_point2 = tip_chord.fitPoints.item(31).worldGeometry
-        leading_edge = draw_line(sketch_xy, lead_point1, lead_point2)
+        leading_edge = draw_line(sketch_xy_rails, lead_point1, lead_point2)
        
         
         trail_point1 = root_chord.fitPoints.item(0).worldGeometry
         trail_point2 = tip_chord.fitPoints.item(0).worldGeometry
-        trailing_edge = draw_line(sketch_xy, trail_point1, trail_point2)
+        trailing_edge = draw_line(sketch_xy_rails, trail_point1, trail_point2)
         
-        #testing
-        ui.messageBox("root_profile valid:" + str(root_profile.isValid)) 
 
         #create inner wing loft
         ui.messageBox("Creating wing loft...")
@@ -380,7 +387,7 @@ def run(context):
 
         #solid loft for inner wing, later used to intersect with ribs
         inner_wing = create_loft(rootComp, inner_wing_sections, solid=True, rails=inner_wing_rails)
-        
+        inner_wing.name = "inner wing"
 
 
 
@@ -396,18 +403,18 @@ def run(context):
         leading_vector = adsk.core.Vector3D.create(-OFFSET,0,0)
         leading_transform = adsk.core.Matrix3D.create()
         leading_transform.translation = leading_vector 
-        off_leading_edge = draw_line(sketch_xy, lead_point1, lead_point2)
+        off_leading_edge = draw_line(sketch_xy_rails, lead_point1, lead_point2)
         offset_leading = adsk.core.ObjectCollection.create()
         offset_leading.add(off_leading_edge)
-        sketch_xy.move(offset_leading, leading_transform)
+        sketch_xy_rails.move(offset_leading, leading_transform)
 
         trailing_vector = adsk.core.Vector3D.create(OFFSET,0,0)
         trailing_transform = adsk.core.Matrix3D.create()
         trailing_transform.translation = trailing_vector 
-        off_trailing_edge = draw_line(sketch_xy, trail_point1, trail_point2)
+        off_trailing_edge = draw_line(sketch_xy_rails, trail_point1, trail_point2)
         offset_trailing = adsk.core.ObjectCollection.create()
         offset_trailing.add(off_trailing_edge)
-        sketch_xy.move(offset_trailing, trailing_transform)
+        sketch_xy_rails.move(offset_trailing, trailing_transform)
 
         #collect sections and rails
         outer_wing_sections = adsk.core.ObjectCollection.create()
@@ -420,6 +427,7 @@ def run(context):
 
         #loft outer wing
         outer_wing = create_loft(rootComp, outer_wing_sections, solid=False, rails=outer_wing_rails)
+        outer_wing.name = "outer wing"
         
 
 
@@ -434,7 +442,9 @@ def run(context):
         #create aileron
         ui.messageBox("Creating ailerons...")
 
-        #aileron points from tip to root and front to back
+        #aileron points from tip to root and front to back:
+        # lead1  -   lead2  -   slit2
+        #            slit1  -   slit3
         ail_point_lead1 = adsk.core.Point3D.create(TIP_CHORD_LENGTH + (SPAN/2)*math.tan(SWEEP) - AIL_LENGTH, -(SPAN/2), 0)
         ail_point_lead2 = adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP), -(SPAN/2 - AIL_WIDTH), 0)
         ail_point_slit1 = adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP) + AIL_LENGTH*2, -(SPAN/2 - AIL_WIDTH), 0)
@@ -442,42 +452,84 @@ def run(context):
         ail_point_slit3 = adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH - AIL_SPACE)*math.tan(TRAIL_SWEEP) + AIL_LENGTH*2, -(SPAN/2 - AIL_WIDTH - AIL_SPACE), 0)
 
         sketch_xz_ail = rootComp.sketches.add(rootComp.xZConstructionPlane)
+        sketch_xz_ail.name = "Aileron Edges Sketch"
         aileron_leading_edge = sketch_xz_ail.sketchCurves.sketchLines.addByTwoPoints(ail_point_lead1, ail_point_lead2)
         aileron_side = sketch_xz_ail.sketchCurves.sketchLines.addByTwoPoints(ail_point_lead2, ail_point_slit1)
 
         #small spacing between wing and aileron
-        aileron_space_z = draw_line(sketch_xz_ail, ail_point_lead2, ail_point_slit2)
-        aileron_space_x = draw_line(sketch_xz_ail,ail_point_slit2, ail_point_slit3)
-        aileron_space_close = draw_line(sketch_xz_ail, ail_point_slit1, ail_point_slit3)
+        aileron_space_top = draw_line(sketch_xz_ail, ail_point_lead2, ail_point_slit2)
+        aileron_space_right = draw_line(sketch_xz_ail,ail_point_slit2, ail_point_slit3)
+        aileron_space_bottom = draw_line(sketch_xz_ail, ail_point_slit1, ail_point_slit3)
         ail_space = sketch_xz_ail.profiles.item(sketch_xz_ail.profiles.count - 1)
 
-        #cut space from outer wing
-        # Define that the extent is a distance extent of 5 cm.
-        #distance = adsk.core.ValueInput.createByReal(5)
 
-        # Create the extrusion.
-        #extrudes = rootComp.features.extrudeFeatures
-        #ext = extrudes.addSimple(ail_space, distance, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        #cut space from outer wing (later also spar grid)
+        #left of aileron
+        '''
+        # Create the extrusion cut
+        extrudes = rootComp.features.extrudeFeatures
+        cut_ail_space_input = extrudes.createInput(ail_space, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        extent_distance = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByString("20cm"))
+        cut_ail_space_input.setTwoSidesExtent(extent_distance, extent_distance)
+        #cut only outer wing
+        cut_ail_space_input.participantBodies = [outer_wing.bodies.item(0)]
+        cut_ail_space = extrudes.add(cut_ail_space_input)
+        '''
 
-        #TargetBody = outer_wing
- 
-        #ToolBodies = adsk.core.ObjectCollection.create()
-        #ToolBodies.add(ext)
-         
-        #CombineCutInput = rootComp.features.combineFeatures.createInput(TargetBody, ToolBodies)
-         
-        #CombineCutFeats = rootComp.features.combineFeatures
-        #CombineCutInput = CombineCutFeats.createInput(TargetBody, ToolBodies)
-        #CombineCutInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-        #CombineCutFeats.add(CombineCutInput)
+        #cut space from outer wing (later also spar grid)
+        #leading edge of aileron
+        sketch_xy_tip_ail = rootComp.sketches.add(tip_plane)
+        sketch_xy_tip_ail.name = "Aileron Tip Sketch"
+        planeInput = planes.createInput()
+        offsetValue = adsk.core.ValueInput.createByReal(SPAN/2 - AIL_WIDTH)
+        planeInput.setByOffset(rootComp.xYConstructionPlane, offsetValue)
+        plane_root_ail = planes.add(planeInput)
+        sketch_xy_root_ail = rootComp.sketches.add(plane_root_ail)
+        sketch_xy_root_ail.name = "Aileron Root Sketch"
 
+        #get intersection with outer wing into aileron sketches
+        intersection = sketch_xy_root_ail.intersectWithSketchPlane([outer_wing.bodies.item(0)])
+        intersection_curve = sketch_xy_root_ail.sketchCurves.item(0)
+
+        #get intersection points in aileron root plane
+        inter1 = adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP), SPAN/4, 0)
+        inter2 = adsk.core.Point3D.create((ROOT_CHORD_LENGTH - AIL_LENGTH) + (SPAN/2 - AIL_WIDTH)*math.tan(TRAIL_SWEEP), -SPAN/4, 0)
+        line = sketch_xy_root_ail.sketchCurves.sketchLines.addByTwoPoints(inter1, inter2)
+        line.isConstruction = True
+
+
+        #worldGeometry returns line3D object
+        points = line.worldGeometry.intersectWithCurve(sketch_xy_root_ail.sketchCurves.item(0).worldGeometry)
+
+        #line_ail = draw_line(sketch_xy, points.item(0), points.item(1))
+        pointA = points.item(0)
+        pointB = points.item(1)
+
+        if points.item(0).y < points.item(1).y:
+            pointA = points.item(1)
+            pointB = points.item(0)
+        else:
+            pointA = points.item(0)
+            pointB = points.item(1)
+
+        vec = adsk.core.Vector3D.create(0, AIL_SLIT/10, 0)
+        vec2 = adsk.core.Vector3D.create(0, -AIL_SLIT/2, 0)
+        pointA.translateBy(vec)
+        pointB.translateBy(vec2)
+
+        line_ail = draw_line(sketch_xy, pointA, pointB)
+
+        pointC = adsk.core.Point3D.create(pointB.x + AIL_SLIT, pointB.y, pointB.z)
+        line_ail2 = draw_line(sketch_xy, pointB, pointC)
+        line_ail3 = draw_line(sketch_xy, pointC, pointA)
 
 
 
         #create spar grid
-        ui.messageBox("Creating spars...")
-        sketch_xz_grid = rootComp.sketches.add(rootComp.xZConstructionPlane)
-        wing_grid = create_spars(sketch_xz_grid, SPAR_ANGLE, SPAR_DIST)        
+        #ui.messageBox("Creating spars...")
+        #sketch_xz_grid = rootComp.sketches.add(rootComp.xZConstructionPlane)
+        #sketch_xz_grid.name = "Spar Grid Sketch"
+        #wing_grid = create_spars(sketch_xz_grid, SPAR_ANGLE, SPAR_DIST)        
 
         
         '''
